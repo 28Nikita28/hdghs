@@ -15,7 +15,7 @@ app.logger.setLevel(logging.INFO)
 CORS(app, resources={
     r"/*": {
         "origins": [
-            "https://w1model.netlify.app",
+            "https://w5model.netlify.app",
             "http://localhost:*",
             "https://*.netlify.app"
         ],
@@ -82,7 +82,7 @@ def chat_handler():
         # Запрос к OpenAI
         response = client.chat.completions.create(
             extra_headers={
-                "HTTP-Referer": "https://w1model.netlify.app/",
+                "HTTP-Referer": "https://w5model.netlify.app/",
                 "X-Title": "My AI Assistant"
             },
             model="google/gemma-3-27b-it:free",
@@ -112,7 +112,7 @@ def _build_cors_preflight_response():
     return response
 
 def _corsify_actual_response(response):
-    response.headers.add("Access-Control-Allow-Origin", "https://w1model.netlify.app")
+    response.headers.add("Access-Control-Allow-Origin", "https://w5model.netlify.app")
     response.headers.add("Access-Control-Allow-Credentials", "true")
     return response
 
