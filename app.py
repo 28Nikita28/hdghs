@@ -11,16 +11,16 @@ import logging
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
 
-# Настройка CORS
+# Настройка CORS для Render
 CORS(app, resources={
-    r"/chat": {
+    r"/*": {
         "origins": [
             "https://w1model.netlify.app",
             "http://localhost:*",
             "https://*.netlify.app"
         ],
-        "methods": ["POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
     }
 })
 
@@ -51,13 +51,17 @@ def health_check():
     return jsonify({
         "status": "OK",
         "service": "AI Assistant",
-        "version": "1.0"
+        "version": "1.1",
+        "port": os.environ.get("PORT", "3000")
     })
 
-@app.route('/chat', methods=['POST'])
+@app.route('/chat', methods=['POST', 'OPTIONS'])
 def chat_handler():
     """Основной обработчик запросов"""
     try:
+        if request.method == 'OPTIONS':
+            return _build_cors_preflight_response()
+            
         data = request.get_json()
         
         # Валидация входных данных
@@ -92,21 +96,34 @@ def chat_handler():
 
         # Форматирование ответа
         content = response.choices[0].message.content
-        return jsonify({
+        return _corsify_actual_response(jsonify({
             "content": format_code_blocks(content)
-        })
+        }))
 
     except Exception as e:
         app.logger.exception("Ошибка обработки запроса")
-        return jsonify({"error": str(e)}), 500
+        return _corsify_actual_response(jsonify({"error": str(e)})), 500
+
+def _build_cors_preflight_response():
+    response = jsonify()
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "*")
+    response.headers.add("Access-Control-Allow-Methods", "*")
+    return response
+
+def _corsify_actual_response(response):
+    response.headers.add("Access-Control-Allow-Origin", "https://w1model.netlify.app")
+    response.headers.add("Access-Control-Allow-Credentials", "true")
+    return response
 
 asgi_app = WsgiToAsgi(app)
 
 if __name__ == '__main__':
     import uvicorn
     uvicorn.run(
-        asgi_app,
+        "app:asgi_app",
         host="0.0.0.0",
-        port=int(os.environ.get("PORT", 3000)),
-        log_level="info"
+        port=int(os.environ.get("PORT", 10000)),  # Используем порт Render по умолчанию
+        log_level="info",
+        timeout_keep_alive=30
     )
