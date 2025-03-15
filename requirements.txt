@@ -1,0 +1,8 @@
+openai
+flask
+flask-cors
+requests
+uvicorn
+python-dotenv 
+asgiref
+
