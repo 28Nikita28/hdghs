@@ -36,13 +36,13 @@ def format_code_blocks(text):
     """Форматирование Markdown-контента"""
     replacements = [
         (r'```(\w+)?\n(.*?)\n```', r'```\1\n\2\n```', re.DOTALL),
-        (r'(#{1,3}) (.*)', r'\n\1 \2\n'),
-        (r'\*\*(.*?)\*\*', r'**\1**'),
-        (r'\*(.*?)\*', r'*\1*')
+        (r'(#{1,3}) (.*)', r'\n\1 \2\n', 0),  # Добавлен флаг 0
+        (r'\*\*(.*?)\*\*', r'**\1**', 0),     # Добавлен флаг 0
+        (r'\*(.*?)\*', r'*\1*', 0)            # Добавлен флаг 0
     ]
     
     for pattern, repl, flags in replacements:
-        text = re.sub(pattern, repl, text, flags=flags or 0)
+        text = re.sub(pattern, repl, text, flags=flags)
     return text
 
 @app.route('/')
