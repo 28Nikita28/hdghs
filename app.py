@@ -60,10 +60,14 @@ def health_check():
 def chat_handler():
     """Основной обработчик запросов"""
     try:
+        app.logger.info(f"Incoming request headers: {request.headers}")
+        app.logger.info(f"Request method: {request.method}")
+        
         if request.method == 'OPTIONS':
             return _build_cors_preflight_response()
             
         data = request.get_json()
+        app.logger.info(f"Request data: {data}")
         
         # Валидация входных данных
         if not data or ('userInput' not in data and 'imageUrl' not in data):
@@ -86,13 +90,13 @@ def chat_handler():
                 "HTTP-Referer": "https://w5model.netlify.app/",
                 "X-Title": "My AI Assistant"
             },
-            model="deepseek/deepseek-chat:free",
+            model="google/gemma-3-27b-it:free",
             messages=[
                 {"role": "system", "content": "Вы очень полезный помощник отвечающий на русском языке!"},
                 {"role": "user", "content": user_content}
             ],
-            max_tokens=4096,
-            temperature=0.5
+            max_tokens=1024,
+            temperature=0.7
         )
 
         # Форматирование ответа
