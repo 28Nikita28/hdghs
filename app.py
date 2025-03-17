@@ -18,7 +18,8 @@ CORS(app, resources={
             "https://w5model.netlify.app",
             "http://localhost:*",
             "https://*.netlify.app",
-            "https://hdghs.onrender.com"
+            "https://hdghs.onrender.com",
+            "http://localhost:5174"
         ],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
@@ -117,7 +118,20 @@ def _build_cors_preflight_response():
     return response
 
 def _corsify_actual_response(response):
-    response.headers.add("Access-Control-Allow-Origin", "https://hdghs.onrender.com")
+    origin = request.headers.get('Origin')
+    allowed_origins = [
+        "https://w5model.netlify.app",
+        "http://localhost:*",
+        "https://*.netlify.app",
+        "https://hdghs.onrender.com",
+        "http://localhost:5174"
+    ]
+    
+    if any(origin.startswith(o.replace('*', '')) for o in allowed_origins):
+        response.headers.add("Access-Control-Allow-Origin", origin)
+    else:
+        response.headers.add("Access-Control-Allow-Origin", "https://hdghs.onrender.com")
+        
     response.headers.add("Access-Control-Allow-Credentials", "true")
     response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
     response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
