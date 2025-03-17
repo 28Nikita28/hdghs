@@ -17,7 +17,8 @@ CORS(app, resources={
         "origins": [
             "https://w5model.netlify.app",
             "http://localhost:*",
-            "https://*.netlify.app"
+            "https://*.netlify.app",
+            "https://hdghs.onrender.com"
         ],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
