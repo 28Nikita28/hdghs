@@ -19,6 +19,7 @@ CORS(app, resources={
             "http://localhost:*",
             "https://*.netlify.app",
             "https://hdghs.onrender.com",
+            "https://sadf-pufq.onrender.com",
             "http://localhost:5174"
         ],
         "methods": ["GET", "POST", "OPTIONS"],
@@ -124,6 +125,7 @@ def _corsify_actual_response(response):
         "http://localhost:*",
         "https://*.netlify.app",
         "https://hdghs.onrender.com",
+        "https://sadf-pufq.onrender.com",
         "http://localhost:5174"
     ]
     
