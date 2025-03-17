@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -6,7 +6,6 @@ from asgiref.wsgi import WsgiToAsgi
 import os
 import re
 import logging
-import json
 
 # Инициализация приложения
 app = Flask(__name__)
@@ -66,9 +65,9 @@ def chat_handler():
         data = request.get_json()
         
         # Валидация входных данных
-        if not data or ('userInput' not in data and 'imageUrl' not in data) or 'model' not in data:
+        if not data or ('userInput' not in data and 'imageUrl' not in data):
             app.logger.error('Invalid request data: %s', data)
-            return jsonify({"error": "Требуется текст или изображение и модель"}), 400
+            return jsonify({"error": "Требуется текст или изображение"}), 400
 
         # Формирование контента для OpenAI
         user_content = []
@@ -79,35 +78,27 @@ def chat_handler():
                 "type": "image_url", 
                 "image_url": {"url": data['imageUrl']}
             })
-        
-        model = data['model']
 
         # Запрос к OpenAI
-        stream = client.chat.completions.create(
+        response = client.chat.completions.create(
             extra_headers={
                 "HTTP-Referer": "https://w5model.netlify.app/",
                 "X-Title": "My AI Assistant"
             },
-            model=model,
+            model="google/gemma-3-27b-it:free",
             messages=[
                 {"role": "system", "content": "Вы очень полезный помощник отвечающий на русском языке!"},
                 {"role": "user", "content": user_content}
             ],
             max_tokens=1024,
-            temperature=0.7,
-            stream=True
+            temperature=0.7
         )
 
-        def generate():
-            for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield f"data: {json.dumps({'content': chunk.choices[0].delta.content})}\n\n"
-
-                elif chunk.choices[0].finish_reason == "stop":
-                  yield f"data: {json.dumps({'content': ''})}\n\n"
-            yield "data: [DONE]\n\n"
-        
-        return Response(generate(), mimetype='text/event-stream')
+        # Форматирование ответа
+        content = response.choices[0].message.content
+        return _corsify_actual_response(jsonify({
+            "content": format_code_blocks(content)
+        }))
 
     except Exception as e:
         app.logger.exception("Ошибка обработки запроса")
