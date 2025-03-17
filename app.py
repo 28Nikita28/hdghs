@@ -86,13 +86,13 @@ def chat_handler():
                 "HTTP-Referer": "https://w5model.netlify.app/",
                 "X-Title": "My AI Assistant"
             },
-            model="google/gemma-3-27b-it:free",
+            model="deepseek/deepseek-chat:free",
             messages=[
                 {"role": "system", "content": "Вы очень полезный помощник отвечающий на русском языке!"},
                 {"role": "user", "content": user_content}
             ],
-            max_tokens=1024,
-            temperature=0.7
+            max_tokens=4096,
+            temperature=0.5
         )
 
         # Форматирование ответа
