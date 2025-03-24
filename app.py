@@ -1,92 +1,91 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from openai import OpenAI
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from openai import AsyncOpenAI
 from dotenv import load_dotenv
-from asgiref.wsgi import WsgiToAsgi
 import os
 import re
 import logging
-
-# Инициализация приложения
-app = Flask(__name__)
-app.logger.setLevel(logging.INFO)
-
-# Настройка CORS для Render
-CORS(app, resources={
-    r"/*": {
-        "origins": [
-            "https://w5model.netlify.app",
-            "http://localhost:*",
-            "https://*.netlify.app",
-            "https://hdghs.onrender.com",
-            "http://localhost:5174"
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
-    }
-})
+from pydantic import BaseModel
+import uvicorn
 
 load_dotenv()
 
-# Инициализация клиента OpenAI
-client = OpenAI(
+app = FastAPI(title="AI Assistant", version="1.1")
+
+origins = [
+    "https://w5model.netlify.app",
+    "http://localhost:*",
+    "https://*.netlify.app",
+    "https://hdghs.onrender.com",
+    "http://localhost:5174"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+logger = logging.getLogger("uvicorn")
+logger.setLevel(logging.INFO)
+
+client = AsyncOpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=os.environ.get("AI_TOKEN")
 )
 
-def format_code_blocks(text):
+class ChatRequest(BaseModel):
+    userInput: str | None = None
+    imageUrl: str | None = None
+
+def format_code_blocks(text: str) -> str:
     """Форматирование Markdown-контента"""
     replacements = [
         (r'```(\w+)?\n(.*?)\n```', r'```\1\n\2\n```', re.DOTALL),
-        (r'(#{1,3}) (.*)', r'\n\1 \2\n', 0),  # Добавлен флаг 0
-        (r'\*\*(.*?)\*\*', r'**\1**', 0),     # Добавлен флаг 0
-        (r'\*(.*?)\*', r'*\1*', 0)            # Добавлен флаг 0
+        (r'(#{1,3}) (.*)', r'\n\1 \2\n', 0),
+        (r'\*\*(.*?)\*\*', r'**\1**', 0),
+        (r'\*(.*?)\*', r'*\1*', 0)
     ]
     
     for pattern, repl, flags in replacements:
         text = re.sub(pattern, repl, text, flags=flags)
     return text
 
-@app.route('/')
-def health_check():
+@app.get("/")
+async def health_check():
     """Эндпоинт для проверки работоспособности"""
-    return jsonify({
+    return {
         "status": "OK",
         "service": "AI Assistant",
         "version": "1.1",
-        "port": os.environ.get("PORT", "3000")
-    })
+        "port": os.environ.get("PORT", "10000")
+    }
 
-@app.route('/chat', methods=['POST', 'OPTIONS'])
-def chat_handler():
+@app.post("/chat")
+async def chat_handler(request: Request, chat_data: ChatRequest):
     """Основной обработчик запросов"""
     try:
-        app.logger.info(f"Incoming request headers: {request.headers}")
-        app.logger.info(f"Request method: {request.method}")
-        
-        if request.method == 'OPTIONS':
-            return _build_cors_preflight_response()
-            
-        data = request.get_json()
-        app.logger.info(f"Request data: {data}")
+        logger.info(f"Incoming request headers: {request.headers}")
         
         # Валидация входных данных
-        if not data or ('userInput' not in data and 'imageUrl' not in data):
-            app.logger.error('Invalid request data: %s', data)
-            return jsonify({"error": "Требуется текст или изображение"}), 400
+        if not chat_data.userInput and not chat_data.imageUrl:
+            logger.error('Invalid request data')
+            raise HTTPException(status_code=400, detail="Требуется текст или изображение")
 
         # Формирование контента для OpenAI
         user_content = []
-        if data.get('userInput'):
-            user_content.append({"type": "text", "text": data['userInput']})
-        if data.get('imageUrl'):
+        if chat_data.userInput:
+            user_content.append({"type": "text", "text": chat_data.userInput})
+        if chat_data.imageUrl:
             user_content.append({
                 "type": "image_url", 
-                "image_url": {"url": data['imageUrl']}
+                "image_url": {"url": chat_data.imageUrl}
             })
 
-        # Запрос к OpenAI
-        response = client.chat.completions.create(
+        # Асинхронный запрос к OpenAI
+        response = await client.chat.completions.create(
             extra_headers={
                 "HTTP-Referer": "https://w5model.netlify.app/",
                 "X-Title": "My AI Assistant"
@@ -102,49 +101,17 @@ def chat_handler():
 
         # Форматирование ответа
         content = response.choices[0].message.content
-        return _corsify_actual_response(jsonify({
-            "content": format_code_blocks(content)
-        }))
+        return {"content": format_code_blocks(content)}
 
     except Exception as e:
-        app.logger.exception("Ошибка обработки запроса")
-        return _corsify_actual_response(jsonify({"error": str(e)})), 500
+        logger.exception("Ошибка обработки запроса")
+        raise HTTPException(status_code=500, detail=str(e))
 
-def _build_cors_preflight_response():
-    response = jsonify()
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "*")
-    response.headers.add("Access-Control-Allow-Methods", "*")
-    return response
-
-def _corsify_actual_response(response):
-    origin = request.headers.get('Origin')
-    allowed_origins = [
-        "https://w5model.netlify.app",
-        "http://localhost:*",
-        "https://*.netlify.app",
-        "https://hdghs.onrender.com",
-        "http://localhost:5174"
-    ]
-    
-    if any(origin.startswith(o.replace('*', '')) for o in allowed_origins):
-        response.headers.add("Access-Control-Allow-Origin", origin)
-    else:
-        response.headers.add("Access-Control-Allow-Origin", "https://hdghs.onrender.com")
-        
-    response.headers.add("Access-Control-Allow-Credentials", "true")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    return response
-
-asgi_app = WsgiToAsgi(app)
-
-if __name__ == '__main__':
-    import uvicorn
+if __name__ == "__main__":
     uvicorn.run(
-        "app:asgi_app",
+        "app:app",
         host="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000)),  # Используем порт Render по умолчанию
+        port=int(os.environ.get("PORT", 10000)),
         log_level="info",
         timeout_keep_alive=30
     )
