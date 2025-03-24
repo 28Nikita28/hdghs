@@ -1,8 +1,5 @@
-openai
-flask
-flask-cors
-requests
+fastapi
 uvicorn
-python-dotenv 
-asgiref
+openai
+python-dotenv
 
