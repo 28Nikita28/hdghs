@@ -90,12 +90,12 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
                 "HTTP-Referer": "https://w5model.netlify.app/",
                 "X-Title": "My AI Assistant"
             },
-            model="deepseek/deepseek-chat-v3-0324:free",
+            model="google/gemini-2.5-pro-exp-03-25:free",
             messages=[
                 {"role": "system", "content": "Вы очень полезный помощник отвечающий на русском языке!"},
                 {"role": "user", "content": user_content}
             ],
-            max_tokens=4096,
+            max_tokens=65536,
             temperature=0.5
         )
 
