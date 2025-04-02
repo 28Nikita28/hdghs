@@ -1,6 +1,7 @@
 import json
-from fastapi import FastAPI, Request, HTTPException, StreamingResponse
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 import os
