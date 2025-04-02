@@ -39,6 +39,7 @@ client = AsyncOpenAI(
 class ChatRequest(BaseModel):
     userInput: str | None = None
     imageUrl: str | None = None
+    model: str = "deepseek/deepseek-r1:free"  # Значение по умолчанию
 
 def format_code_blocks(text: str) -> str:
     """Форматирование Markdown-контента"""
@@ -84,13 +85,25 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
                 "image_url": {"url": chat_data.imageUrl}
             })
 
+        # Добавить выбор модели
+        model_mapping = {
+            "deepseek": "deepseek/deepseek-r1:free",
+            "gemma": "google/gemma-3-27b-it:free",
+            "mistral": "mistralai/mistral-small-24b-instruct-2501:free"
+        }
+        
+        selected_model = model_mapping.get(
+            chat_data.model.split('/')[0],  # Извлекаем префикс модели
+            "deepseek/deepseek-r1:free"
+        )
+
         # Асинхронный запрос к OpenAI
         response = await client.chat.completions.create(
             extra_headers={
                 "HTTP-Referer": "https://w5model.netlify.app/",
                 "X-Title": "My AI Assistant"
             },
-            model="google/gemini-2.5-pro-exp-03-25:free",
+            model=selected_model,
             messages=[
                 {"role": "system", "content": "Вы очень полезный помощник отвечающий на русском языке!"},
                 {"role": "user", "content": user_content}
