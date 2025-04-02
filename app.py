@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException
+import json
+from fastapi import FastAPI, Request, HTTPException, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
@@ -101,8 +102,8 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
             "deepseek/deepseek-chat-v3-0324:free"
         )
 
-        # Асинхронный запрос к OpenAI
-        response = await client.chat.completions.create(
+        # Создаем потоковое соединение
+        stream = await client.chat.completions.create(
             extra_headers={
                 "HTTP-Referer": "https://w5model.netlify.app/",
                 "X-Title": "My AI Assistant"
@@ -113,12 +114,24 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
                 {"role": "user", "content": user_content}
             ],
             max_tokens=4096,
-            temperature=0.5
+            temperature=0.5,
+            stream=True  # Включаем потоковый режим
         )
 
-        # Форматирование ответа
-        content = response.choices[0].message.content
-        return {"content": format_code_blocks(content)}
+        # Генератор для потоковой передачи
+        async def generate():
+            full_response = []
+            async for chunk in stream:
+                content = chunk.choices[0].delta.content
+                if content:
+                    full_response.append(content)
+                    yield f"data: {json.dumps({'content': content})}\n\n"
+            
+            # Финализируем форматирование
+            yield f"data: {json.dumps({'content': format_code_blocks(''.join(full_response))})}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(generate(), media_type="text/event-stream")
 
     except Exception as e:
         logger.exception("Ошибка обработки запроса")
