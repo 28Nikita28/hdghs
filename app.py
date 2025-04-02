@@ -39,7 +39,7 @@ client = AsyncOpenAI(
 class ChatRequest(BaseModel):
     userInput: str | None = None
     imageUrl: str | None = None
-    model: str = "deepseek/deepseek-r1:free"  # Значение по умолчанию
+    model: str = "deepseek/deepseek-chat-v3-0324:free"  # Значение по умолчанию
 
 def format_code_blocks(text: str) -> str:
     """Форматирование Markdown-контента"""
@@ -87,14 +87,18 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
 
         # Добавить выбор модели
         model_mapping = {
-            "deepseek": "deepseek/deepseek-r1:free",
+            "deepseek": "deepseek/deepseek-chat-v3-0324:free",
+            "deepseek-r1": "deepseek/deepseek-r1:free",
+            "deepseek-v3": "deepseek/deepseek-chat:free",
+            "gemini": "google/gemini-2.5-pro-exp-03-25:free",
             "gemma": "google/gemma-3-27b-it:free",
-            "mistral": "mistralai/mistral-small-24b-instruct-2501:free"
+            "qwen": "qwen/qwq-32b:free",
+            "qwen 2.5": "qwen/qwen2.5-vl-32b-instruct:free"
         }
         
         selected_model = model_mapping.get(
             chat_data.model.split('/')[0],  # Извлекаем префикс модели
-            "deepseek/deepseek-r1:free"
+            "deepseek/deepseek-chat-v3-0324:free"
         )
 
         # Асинхронный запрос к OpenAI
@@ -108,7 +112,7 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
                 {"role": "system", "content": "Вы очень полезный помощник отвечающий на русском языке!"},
                 {"role": "user", "content": user_content}
             ],
-            max_tokens=65536,
+            max_tokens=4096,
             temperature=0.5
         )
 
