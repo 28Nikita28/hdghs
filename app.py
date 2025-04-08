@@ -95,7 +95,9 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
             "gemini": "google/gemini-2.5-pro-exp-03-25:free",
             "gemma": "google/gemma-3-27b-it:free",
             "qwen": "qwen/qwq-32b:free",
-            "qwen 2.5": "qwen/qwen2.5-vl-32b-instruct:free"
+            "qwen 2.5": "qwen/qwen2.5-vl-32b-instruct:free",
+            "llama-4-maverick": "meta-llama/llama-4-maverick:free",
+            "llama-4-scout": "meta-llama/llama-4-scout:free"
         }
         
         selected_model = model_mapping.get(
