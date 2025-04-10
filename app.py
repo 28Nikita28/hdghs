@@ -146,14 +146,22 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
         async def generate():
             full_response = []
             async for chunk in stream:
-                content = chunk.choices[0].delta.content
-                if content:
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
                     full_response.append(content)
                     yield f"data: {json.dumps({'content': content})}\n\n"
             
             yield "data: [DONE]\n\n"
 
-        return StreamingResponse(generate(), media_type="text/event-stream")
+        async def generate_with_errors():
+            try:
+                async for event in generate():
+                    yield event
+            except Exception as e:
+                logger.error(f"Stream error: {str(e)}")
+                yield "data: [ERROR]\n\n"
+
+        return StreamingResponse(generate_with_errors(), media_type="text/event-stream")
 
     except Exception as e:
         logger.exception("Ошибка обработки запроса")
