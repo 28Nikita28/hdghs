@@ -33,15 +33,21 @@ app.add_middleware(
 logger = logging.getLogger("uvicorn")
 logger.setLevel(logging.INFO)
 
+# Проверка наличия обязательных переменных
+required_env_vars = ["OPENROUTER_API_KEY", "TOGETHER_API_KEY"]
+for var in required_env_vars:
+    if not os.getenv(var):
+        raise ValueError(f"Missing required environment variable: {var}")
+
 # Клиенты для разных провайдеров
 clients = {
     "openrouter": AsyncOpenAI(
         base_url="https://openrouter.ai/api/v1",
-        api_key=os.environ.get("AI_TOKEN")
+        api_key=os.environ.get("OPENROUTER_API_KEY")
     ),
     "together": AsyncOpenAI(
         base_url="https://api.together.xyz/v1",
-        api_key=os.environ.get("API_KEY")
+        api_key=os.environ.get("TOGETHER_API_KEY")
     )
 }
 
