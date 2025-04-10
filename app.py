@@ -12,7 +12,7 @@ import uvicorn
 
 load_dotenv()
 
-app = FastAPI(title="AI Assistant", version="1.1")
+app = FastAPI(title="AI Assistant", version="1.2")
 
 origins = [
     "https://w5model.netlify.app",
@@ -33,15 +33,22 @@ app.add_middleware(
 logger = logging.getLogger("uvicorn")
 logger.setLevel(logging.INFO)
 
-client = AsyncOpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.environ.get("AI_TOKEN")
-)
+# Клиенты для разных провайдеров
+clients = {
+    "openrouter": AsyncOpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=os.environ.get("AI_TOKEN")
+    ),
+    "together": AsyncOpenAI(
+        base_url="https://api.together.xyz/v1",
+        api_key=os.environ.get("API_KEY")
+    )
+}
 
 class ChatRequest(BaseModel):
     userInput: str | None = None
     imageUrl: str | None = None
-    model: str = "deepseek/deepseek-chat-v3-0324:free"  # Значение по умолчанию
+    model: str = "deepseek/deepseek-chat-v3-0324:free"
 
 def format_code_blocks(text: str) -> str:
     """Форматирование Markdown-контента"""
@@ -58,26 +65,23 @@ def format_code_blocks(text: str) -> str:
 
 @app.get("/")
 async def health_check():
-    """Эндпоинт для проверки работоспособности"""
     return {
         "status": "OK",
         "service": "AI Assistant",
-        "version": "1.1",
+        "version": "1.2",
+        "providers": ["openrouter", "together"],
         "port": os.environ.get("PORT", "10000")
     }
 
 @app.post("/chat")
 async def chat_handler(request: Request, chat_data: ChatRequest):
-    """Основной обработчик запросов"""
     try:
         logger.info(f"Incoming request headers: {request.headers}")
         
-        # Валидация входных данных
         if not chat_data.userInput and not chat_data.imageUrl:
             logger.error('Invalid request data')
             raise HTTPException(status_code=400, detail="Требуется текст или изображение")
 
-        # Формирование контента для OpenAI
         user_content = []
         if chat_data.userInput:
             user_content.append({"type": "text", "text": chat_data.userInput})
@@ -87,30 +91,42 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
                 "image_url": {"url": chat_data.imageUrl}
             })
 
-        # Добавить выбор модели
+        # Определяем провайдера и модель
         model_mapping = {
-            "deepseek": "deepseek/deepseek-chat-v3-0324:free",
-            "deepseek-r1": "deepseek/deepseek-r1:free",
-            "deepseek-v3": "deepseek/deepseek-chat:free",
-            "gemini": "google/gemini-2.5-pro-exp-03-25:free",
-            "gemma": "google/gemma-3-27b-it:free",
-            "qwen": "qwen/qwq-32b:free",
-            "qwen 2.5": "qwen/qwen2.5-vl-32b-instruct:free",
-            "llama-4-maverick": "meta-llama/llama-4-maverick:free",
-            "llama-4-scout": "meta-llama/llama-4-scout:free"
+            "deepseek": ("openrouter", "deepseek/deepseek-chat-v3-0324:free"),
+            "deepseek-r1": ("openrouter", "deepseek/deepseek-r1:free"),
+            "deepseek-v3": ("openrouter", "deepseek/deepseek-chat:free"),
+            "gemini": ("openrouter", "google/gemini-2.5-pro-exp-03-25:free"),
+            "gemma": ("openrouter", "google/gemma-3-27b-it:free"),
+            "qwen": ("openrouter", "qwen/qwq-32b:free"),
+            "qwen 2.5": ("openrouter", "qwen/qwen2.5-vl-32b-instruct:free"),
+            "llama-4-maverick": ("together", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"),
+            "llama-4-scout": ("together", "meta-llama/Llama-4-Scout-17B-16E-Instruct")
         }
-        
-        selected_model = model_mapping.get(
-            chat_data.model.split('/')[0],  # Извлекаем префикс модели
-            "deepseek/deepseek-chat-v3-0324:free"
+
+        model_key = chat_data.model.split('/')[0].lower()
+        provider, selected_model = model_mapping.get(
+            model_key,
+            ("openrouter", "deepseek/deepseek-chat-v3-0324:free")
         )
 
-        # Создаем потоковое соединение
-        stream = await client.chat.completions.create(
-            extra_headers={
+        client = clients[provider]
+
+        # Параметры для разных провайдеров
+        extra_params = {
+            "extra_headers": {
                 "HTTP-Referer": "https://w5model.netlify.app/",
                 "X-Title": "My AI Assistant"
-            },
+            }
+        }
+
+        if provider == "together":
+            extra_params["extra_headers"].update({
+                "Together-Client-Identifier": "https://w5model.netlify.app/"
+            })
+
+        stream = await client.chat.completions.create(
+            **extra_params,
             model=selected_model,
             messages=[
                 {"role": "system", "content": "Вы очень полезный помощник отвечающий на русском языке!"},
@@ -118,10 +134,9 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
             ],
             max_tokens=4096,
             temperature=0.5,
-            stream=True  # Включаем потоковый режим
+            stream=True
         )
 
-        # Генератор для потоковой передачи
         async def generate():
             full_response = []
             async for chunk in stream:
@@ -130,8 +145,6 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
                     full_response.append(content)
                     yield f"data: {json.dumps({'content': content})}\n\n"
             
-            # Финализируем форматирование
-            yield f"data: {json.dumps({'content': format_code_blocks(''.join(full_response))})}\n\n"
             yield "data: [DONE]\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")
