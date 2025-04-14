@@ -19,6 +19,7 @@ origins = [
     "http://localhost:*",
     "https://*.netlify.app",
     "https://hdghs.onrender.com",
+    "https://sadf-pufq.onrender.com",
     "http://localhost:5173"
 ]
 
@@ -166,6 +167,52 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
     except Exception as e:
         logger.exception("Ошибка обработки запроса")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Добавить после объявления clients (глобальный уровень)
+model_mapping = {
+    "deepseek": ("openrouter", "deepseek/deepseek-chat-v3-0324:free"),
+    "deepseek-r1": ("openrouter", "deepseek/deepseek-r1:free"),
+    "deepseek-v3": ("openrouter", "deepseek/deepseek-chat:free"),
+    "gemini": ("openrouter", "google/gemini-2.5-pro-exp-03-25:free"),
+    "gemma": ("openrouter", "google/gemma-3-27b-it:free"),
+    "qwen": ("openrouter", "qwen/qwq-32b:free"),
+    "qwen 2.5": ("openrouter", "qwen/qwen2.5-vl-32b-instruct:free"),
+    "llama-4-maverick": ("together", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"),
+    "llama-4-scout": ("together", "meta-llama/Llama-4-Scout-17B-16E-Instruct")
+}
+
+# Затем добавить новый эндпоинт
+@app.post("/chat/telegram")
+async def telegram_chat_handler(chat_data: ChatRequest):
+    try:
+        if not chat_data.userInput:
+            raise HTTPException(status_code=400, detail="Требуется текст")
+
+        model_key = chat_data.model.split('/')[0].lower()
+        provider, selected_model = model_mapping.get(
+            model_key,
+            ("openrouter", "deepseek/deepseek-chat-v3-0324:free")
+        )
+        
+        client = clients[provider]
+
+        response = await client.chat.completions.create(
+            model=selected_model,
+            messages=[
+                {"role": "system", "content": "Отвечай на русском языке четко и структурированно!"},
+                {"role": "user", "content": chat_data.userInput}
+            ],
+            max_tokens=2500,
+            temperature=0.5
+        )
+
+        formatted = response.choices[0].message.content
+        formatted = formatted.replace("```", "'''")  # Экранирование для Telegram
+        return {"content": formatted}
+    
+    except Exception as e:
+        logger.exception(f"Telegram error: {str(e)}")
+        return {"content": "⚠️ Ошибка обработки запроса"}
 
 if __name__ == "__main__":
     uvicorn.run(
