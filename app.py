@@ -109,7 +109,8 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
             "qwen 2.5": ("openrouter", "qwen/qwen2.5-vl-32b-instruct:free"),
             "llama-4-maverick": ("together", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"),
             "llama-4-scout": ("together", "meta-llama/Llama-4-Scout-17B-16E-Instruct"),
-            "deepseek-r1-free": ("together", "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free")
+            "deepseek-r1-free": ("together", "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"),
+            "qwen3 235b": ("together", "Qwen/Qwen3-235B-A22B-fp8-tput")
         }
 
         model_key = chat_data.model.split('/')[0].lower()
@@ -180,7 +181,8 @@ model_mapping = {
     "qwen 2.5": ("openrouter", "qwen/qwen2.5-vl-32b-instruct:free"),
     "llama-4-maverick": ("together", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"),
     "llama-4-scout": ("together", "meta-llama/Llama-4-Scout-17B-16E-Instruct"),
-    "deepseek-r1-free": ("together", "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free")
+    "deepseek-r1-free": ("together", "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"),
+    "qwen3 235b": ("together", "Qwen/Qwen3-235B-A22B-fp8-tput")
 }
 
 # Затем добавить новый эндпоинт
