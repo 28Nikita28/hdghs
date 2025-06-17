@@ -53,9 +53,9 @@ clients = {
 }
 
 class ChatRequest(BaseModel):
-    model: str
-    messages: list  # Принимаем список сообщений
-    stream: bool = True
+    userInput: str | None = None
+    imageUrl: str | None = None
+    model: str = "deepseek/deepseek-chat-v3-0324:free"
 
 def format_code_blocks(text: str) -> str:
     """Форматирование Markdown-контента"""
@@ -83,14 +83,36 @@ async def health_check():
 @app.post("/chat")
 async def chat_handler(request: Request, chat_data: ChatRequest):
     try:
-        logger.info(f"Incoming request data: {chat_data.dict()}")
+        logger.info(f"Incoming request headers: {request.headers}")
         
-        # Проверяем наличие сообщений
-        if not chat_data.messages:
-            logger.error('No messages found')
-            raise HTTPException(status_code=400, detail="Требуется история сообщений")
-        
+        if not chat_data.userInput and not chat_data.imageUrl:
+            logger.error('Invalid request data')
+            raise HTTPException(status_code=400, detail="Требуется текст или изображение")
+
+        user_content = []
+        if chat_data.userInput:
+            user_content.append({"type": "text", "text": chat_data.userInput})
+        if chat_data.imageUrl:
+            user_content.append({
+                "type": "image_url", 
+                "image_url": {"url": chat_data.imageUrl}
+            })
+
         # Определяем провайдера и модель
+        model_mapping = {
+            "deepseek": ("openrouter", "deepseek/deepseek-chat-v3-0324:free"),
+            "deepseek-r1": ("openrouter", "deepseek/deepseek-r1:free"),
+            "deepseek-v3": ("openrouter", "deepseek/deepseek-chat:free"),
+            "gemini": ("openrouter", "google/gemini-2.5-pro-exp-03-25:free"),
+            "gemma": ("openrouter", "google/gemma-3-27b-it:free"),
+            "qwen": ("openrouter", "qwen/qwq-32b:free"),
+            "qwen 2.5": ("openrouter", "qwen/qwen2.5-vl-32b-instruct:free"),
+            "llama-4-maverick": ("together", "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"),
+            "llama-4-scout": ("together", "meta-llama/Llama-4-Scout-17B-16E-Instruct"),
+            "deepseek-r1-free": ("together", "deepseek-ai/DeepSeek-R1-Distill-Llama-70B-free"),
+            "qwen3 235b": ("together", "Qwen/Qwen3-235B-A22B-fp8-tput")
+        }
+
         model_key = chat_data.model.split('/')[0].lower()
         provider, selected_model = model_mapping.get(
             model_key,
@@ -112,15 +134,13 @@ async def chat_handler(request: Request, chat_data: ChatRequest):
                 "Together-Client-Identifier": "https://w5model.netlify.app/"
             })
 
-        # Формируем системное сообщение + пользовательские сообщения
-        messages_for_api = [
-            {"role": "system", "content": "Вы очень полезный помощник отвечающий на русском языке!"}
-        ] + chat_data.messages
-
         stream = await client.chat.completions.create(
             **extra_params,
             model=selected_model,
-            messages=messages_for_api,
+            messages=[
+                {"role": "system", "content": "Вы очень полезный помощник отвечающий на русском языке!"},
+                {"role": "user", "content": user_content}
+            ],
             max_tokens=4096,
             temperature=0.5,
             stream=True
